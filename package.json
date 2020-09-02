@@ -1,0 +1,34 @@
+{
+  "name": "koaStaticServer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node bin/www",
+    "dev": " cross-env NODE_ENV=dev ./node_modules/.bin/nodemon bin/www",
+    "sit": " cross-env NODE_ENV=sit ./node_modules/.bin/nodemon bin/www",
+    "prd": "cross-env NODE_ENV=prd  pm2 start bin/www",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "axios": "^0.20.0",
+    "co-wechat": "^2.4.0",
+    "co-wechat-api": "^3.10.0",
+    "co-wechat-oauth": "^2.0.1",
+    "cross-env": "^7.0.2",
+    "debug": "^4.1.1",
+    "dotenv": "^8.2.0",
+    "koa": "^2.7.0",
+    "koa-body": "^4.2.0",
+    "koa-bodyparser": "^4.2.1",
+    "koa-convert": "^1.2.0",
+    "koa-json": "^2.0.2",
+    "koa-logger": "^3.2.0",
+    "koa-onerror": "^4.1.0",
+    "koa-router": "^7.4.0",
+    "koa-static": "^5.0.0",
+    "mongoose": "^5.10.2"
+  },
+  "devDependencies": {
+    "nodemon": "^1.19.1"
+  }
+}
