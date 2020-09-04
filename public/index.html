@@ -11,6 +11,10 @@
     <link rel="stylesheet" href="js/cube.min.css">
     <script src="./js/vconsole.min.js"></script>
     <script src="./js/js.cookie.min.js"></script>
+    <script src="./js/fly.min.js"></script>
+    <script src="./js/gif.js"></script>
+    <script crossorigin="anonymous" integrity="sha384-45XT1VzQggQADTAenPH2Ecf0gLIwfiZ1J+nlE27AA9qXjtUXaplXshIamSqaco/e" src="https://lib.baomitu.com/spark-md5/3.0.0/spark-md5.js"></script>
+    
     <style>
         .cube-btn {
             margin: 10px 0;
@@ -29,7 +33,10 @@
         <cube-button @click='status'>Cookie session状态保持</cube-button>
         <cube-button @click='getPhoto'>调用摄像头上传照片</cube-button>
         <cube-button @click='getVideo'>调用摄像头上传视频</cube-button>
-        <input id="videofile" name="videofile" type="file" capture="camera" accept="video/*" multiple="" value="打开摄像头" @change='chooseVideo' @input='inputVideo'/>
+        <input  name="videofile" type="file" capture="camera" id="file"  accept="video/*" multiple="" value="打开摄像头" @change='chooseVideo' @input='inputVideo' style="display: none;" ref="inputFile"/>
+        <label for="file">
+            点击上传
+        </label>
         <video
               id="myvideo1"
               :src="videoSrc1"
@@ -39,8 +46,9 @@
               controls
               muted
             >  暂不支持video播放  </video>
-            <input type="button" value="播放" @click='play'>
+            <input type="button" value="播放" @click='play' ref="play">
             <input type="button" value="上传" @click='upLoad'>
+            <!-- <canvas id="canvas1" :width="winWidth1" style="height:100px;width:100px;display:none"></canvas> -->
     </div>
     <script>
         var app = new Vue({
@@ -49,7 +57,13 @@
                 value: 'input',
                 videoSrc1:null,
                 isAndroid:false,
-                file:null
+                file:null,
+                filesAry:[],
+                data:null,
+                SIZE:1024*1024*2,
+                targetRequest:null,
+                fileName:null,
+                nameHash:null
             },
             created() {
                 var u = navigator.userAgent;
@@ -62,6 +76,8 @@
                 // console.log("isiOS");
                     this.isAndroid = false;
                 }
+                
+
             },  
             methods: {
                 async getTokens() {
@@ -142,6 +158,7 @@
 
                     //     }
                     // });
+                   
                     WeixinJSBridge.invoke('chooseVideo', {
                         sourceType : ['album', 'camera'],
                         maxDuration : '8',//限制录制时间
@@ -168,8 +185,13 @@
                 },
                 chooseVideo(e){
                     var file = e.target.files[0];
+                    this.filesAry=Array.from(e.target.files);
+                    this.data=this.createChunk(this.filesAry);
+
+        
+
                     this.file = file
-                    console.log('file大小',file.size)
+                    console.log('file大小',file.size/1024/1024,'M')
                     console.log('file类型',file.type)
                     var url = null;
                     const video = this.$refs.videoId
@@ -186,9 +208,27 @@
                         url = window.webkitURL.createObjectURL(file);
                     }
                     this.videoSrc1 = url;
-                   
-                    video.addEventListener('loadedmetadata', function(e) {
-                        
+                    // const canvas = document.getElementById("canvas1");
+                    // var context = canvas.getContext("2d");
+                
+
+                    // this.gifSetTime1 = true;
+                    // this.gif1.abort();
+                    // this.gif1.frames = [];
+                    // this.gif1.on("finished", function(blob) {
+                    //     if (that.fileAndroid1.size == blob.size) return;
+                    //     // console.log("gif的blob文件", blob);
+                    //     that.fileAndroid1 = that.convertBase64UrlToFile(blob);
+                    //     // that.uploadVideo1(that.fileAndroid1);
+                    // });
+
+
+                    video.addEventListener('loadedmetadata', (e)=> {
+                        // 
+                        document.addEventListener("WeixinJSBridgeReady", function () {
+                            video.play()
+                        }, false);
+                        this.$refs.play.click()
                         console.log('提示视频的元数据已加载')
                         console.log(video.duration)
                     })
@@ -198,22 +238,164 @@
                     this.$refs.videoId.play()
                 },
                 upLoad(){
-                    var params = new FormData()
-                    params.append("file", this.file); // 文件对象
-                    let config ={
-                        headers:{
-                            'Content-Type':'multipart/form-data'
-                        }
-                    }
-                    axios.post('/api/uploadVideo',params,config).then(res=>{
-                        if(res.data.message == 000000){
-                            alert('上传成功')
-                        } 
-                    })
-
+                    // var params = new FormData()
+                    // params.append("file", this.file); // 文件对象
+                    // let config ={
+                    //     headers:{
+                    //         'Content-Type':'multipart/form-data'
+                    //     }
+                    // }
+                    // axios.post('/api/uploadVideo',params,config).then(res=>{
+                    //     if(res.data.message == 000000){
+                    //         alert('上传成功')
+                    //     } 
+                    // })
+                    this.handleUpload()
                 },
                 inputVideo(){
                     console.log('video----')
+                },
+                //将大文件切割
+                createChunk(files=[]){
+                    let filesObj=files.reduce((pre,cur,index,ary)=>{
+                        // console.log(cur)
+                        pre[`${cur.name}_${index}`]=this.handleChunk(cur);
+                        return pre;
+                    },{});
+                    return filesObj;
+                },
+                //将单个文件切割
+                handleChunk(file){
+                    let current=0;
+                    let fileList=[];
+                    while(current<=file.size){
+                        fileList.push({
+                            file:file.slice(current,this.SIZE+current)
+                        });
+                        current+=this.SIZE;
+                    }
+                    return fileList;
+                },
+                // 深处md5 值
+                createMd5(fileChunkList=[]){
+                    let currentChunk=0,md5;
+                    let reader=new FileReader();
+                    let spark = new SparkMD5.ArrayBuffer(); 
+                    function readFile(){
+                        if(fileChunkList[currentChunk].file){
+                            reader.readAsArrayBuffer(fileChunkList[currentChunk].file)
+                        }
+                    }
+                    readFile();
+                    return new Promise(resolve=>{
+                        reader.onload=e=>{
+                            currentChunk++;
+                            spark.append(e.target.result);
+                            if(currentChunk<fileChunkList.length){
+                                readFile();
+                            }else{
+                                md5=spark.end();
+                                resolve(md5);
+                            }
+                        };
+                    })
+                },
+                //将每个切片组装成formdata对象
+                createFormDataRequest(files=[],prop='',nameHash='',fileName='',fileChunk=[]){
+                    // 还有这种 写法； 返回一个axios 的promise
+                    let target=files.map((file,index)=>{
+                        let formdata= new FormData();
+                        formdata.append('file',file.file);
+                        formdata.append('index',index);
+                        formdata.append('hash',prop);
+                        formdata.append('nameHash',nameHash);
+                        formdata.append('filename',fileName);
+                        return {formdata,index};
+                    }).map(({formdata,index})=>{
+                        return this.createRequest({
+                            method:'post',
+                            url:'/api/handleUpload',
+                            data:formdata,
+                        })
+                    })
+                    return target;
+                },
+                // axios 请求
+                createRequest({method='post',url='',data={}}){
+                    return axios({
+                            method:method,
+                            url:url,
+                            data:data,
+                        }).then(res=>{
+                            console.log(res)
+                        }).catch(err=>{
+                            console.log(err)
+                        })
+                },
+                                //点击上传函数
+                async handleUpload(e){
+                    
+                    function splitFilename(str){
+                        var reg = /_/g
+                        var res = reg.exec(str)
+                        while(reg.lastIndex !== 0){
+                            var nextres = reg.exec(str)
+                            if(nextres){
+                                res = nextres
+                            }
+                        }
+                        return str.slice(0,res.index)
+                    }
+
+                    function splitFileHash(key){
+                        var reg = /_/g
+                        var res = reg.exec(key)
+                        while(reg.lastIndex !== 0){
+                            var nextres = reg.exec(key)
+                            if(nextres){
+                                res = nextres
+                            }
+                        }
+                        var obj = {}
+                        obj.fileName = key.slice(0,res.index)
+                        obj.nameHash = key.slice(res.index+1)
+                        return obj
+                    
+                    }
+
+                    this.targetRequest={};
+                    // 这里的this.data 是一个对象 props 为file.name + index  值为 数组； 数组里的value 为分片后的 文件二进制bolb
+                    for(let prop in this.data){
+                        if(this.data.hasOwnProperty(prop)){
+                            
+                            var fileName = splitFilename(prop)
+                            
+                            var nameHash = await this.createMd5(this.data[prop]);
+                            this.targetRequest[`${fileName}_${nameHash}`]=this.createFormDataRequest(this.data[prop],prop,nameHash,fileName);
+                        }
+                    }
+                    
+                    //发送请求，并且请求完成之后合并
+                    Object.keys(this.targetRequest).forEach( key=>{
+                
+                        var {fileName,nameHash } =  splitFileHash(key);
+                        Promise.all(this.targetRequest[key]).then(res=>{
+                            console.log("分片发送成功，开始合并")
+                            let params = new FormData()
+                            params.append('filename',fileName)
+                            params.append('nameHash',nameHash)
+                            params.append('SIZE',this.SIZE)
+                            this.createRequest({
+                                method:'post',
+                                url:'/api/handleMerge',
+                                data:params
+                            }).then(res=>{
+                                console.log('合并请求成功')
+                            })
+                        }).catch(err=>{
+                            console.log('分片发送失败')
+                        })
+                    })
                 }
             },
             mounted: function () {
@@ -221,7 +403,14 @@
                     this.showToastTxtOnly(Cookies.get('openid'))
                 }
                 new VConsole()
-                
+                // this.gif1 = new GIF({
+                //     workers: 1,
+                //     quality: 1000,
+                //     width: this.winWidth1,
+                //     height: this.winHeight1,
+                //     workerScript: "../../static/js/gif.worker.js"
+                // });
+    
             },
         });
     </script>

@@ -49,7 +49,7 @@ app.use(async (ctx, next) => {
 router.use('/users',require('./routes/users'))
 router.use('/home',require('./routes/home'))
 router.use('/wechat',require('./routes/wechat'))
-router.use('/api',require('./routes/api'))
+router.use('/api',require('./routes/apiMethod'))
 
 /**
  * 启动路由
