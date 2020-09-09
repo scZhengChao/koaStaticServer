@@ -26,7 +26,8 @@
     "koa-onerror": "^4.1.0",
     "koa-router": "^7.4.0",
     "koa-static": "^5.0.0",
-    "mongoose": "^5.10.2"
+    "mongoose": "^5.10.2",
+    "vue-video-player": "^5.0.2"
   },
   "devDependencies": {
     "nodemon": "^1.19.1"

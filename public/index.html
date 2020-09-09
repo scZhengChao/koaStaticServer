@@ -14,10 +14,28 @@
     <script src="./js/fly.min.js"></script>
     <script src="./js/gif.js"></script>
     <script crossorigin="anonymous" integrity="sha384-45XT1VzQggQADTAenPH2Ecf0gLIwfiZ1J+nlE27AA9qXjtUXaplXshIamSqaco/e" src="https://lib.baomitu.com/spark-md5/3.0.0/spark-md5.js"></script>
-    
+
     <style>
         .cube-btn {
             margin: 10px 0;
+        }
+        .demo{
+            display: inline-block;
+            width: 600px;
+            height: 338px;
+            text-align: center;
+            line-height: 100px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            overflow: hidden;
+            background: #fff;
+            position: relative;
+            box-shadow: 0 1px 1px rgba(0, 0, 0, .2);
+            margin-right: 4px;
+        }
+        
+        .demo:hover{
+            display: block;
         }
     </style>
 </head>
@@ -37,20 +55,25 @@
         <label for="file">
             点击上传
         </label>
+     
         <video
-              id="myvideo1"
+              :class="myvideo1"
               :src="videoSrc1"
-              style="height:100px;width:200px;margin:0 10px"
               ref="videoId"
-              autoplay="autoplay"
               controls
-              muted
+              muted 
+              autoplay="autoplay"
             >  暂不支持video播放  </video>
-            <input type="button" value="播放" @click='play' ref="play">
-            <input type="button" value="上传" @click='upLoad'>
+        <input type="button" value="播放" @click='play' ref="play">
+        <input type="button" value="上传" @click='upLoad'>
+        <video src="D:/H5/Class/third/audio+base64/my/material/1.mp4" style="border: 1px solid black;"></video>
             <!-- <canvas id="canvas1" :width="winWidth1" style="height:100px;width:100px;display:none"></canvas> -->
     </div>
+    <!-- <link href="./stylesheets/video-js.css"></link> -->
+    <!-- <script src="./js/video.js"></script> -->
     <script>
+        // Vue.use(videojs)
+
         var app = new Vue({
             el: '#app',
             data: {
@@ -63,7 +86,16 @@
                 SIZE:1024*1024*2,
                 targetRequest:null,
                 fileName:null,
-                nameHash:null
+                nameHash:null,
+                myvideo1:{
+                    myvideo1:true,
+                    full:false
+                }
+            },
+            computed: {
+                player() {
+                    return this.$refs.videoPlayer.player
+                }
             },
             created() {
                 var u = navigator.userAgent;
@@ -185,10 +217,9 @@
                 },
                 chooseVideo(e){
                     var file = e.target.files[0];
+                    console.log(file,'sssssssss')
                     this.filesAry=Array.from(e.target.files);
                     this.data=this.createChunk(this.filesAry);
-
-        
 
                     this.file = file
                     console.log('file大小',file.size/1024/1024,'M')
@@ -208,34 +239,46 @@
                         url = window.webkitURL.createObjectURL(file);
                     }
                     this.videoSrc1 = url;
-                    // const canvas = document.getElementById("canvas1");
-                    // var context = canvas.getContext("2d");
-                
-
-                    // this.gifSetTime1 = true;
-                    // this.gif1.abort();
-                    // this.gif1.frames = [];
-                    // this.gif1.on("finished", function(blob) {
-                    //     if (that.fileAndroid1.size == blob.size) return;
-                    //     // console.log("gif的blob文件", blob);
-                    //     that.fileAndroid1 = that.convertBase64UrlToFile(blob);
-                    //     // that.uploadVideo1(that.fileAndroid1);
-                    // });
-
+                    
+                    let videoPlay = video.play();
+                    videoPlay.then(() => {
+                        console.log('可以自动播放');
+                    }).catch((err) => {
+                        console.log("不允许自动播放");
+                        video.muted=true;
+                        video.play();
+                    })
 
                     video.addEventListener('loadedmetadata', (e)=> {
-                        // 
-                        document.addEventListener("WeixinJSBridgeReady", function () {
-                            video.play()
-                        }, false);
-                        this.$refs.play.click()
                         console.log('提示视频的元数据已加载')
                         console.log(video.duration)
                     })
                     
-                },  
+                }, 
+                fullScreen() {
+                    this.myvideo1.full = true
+                    var ele = document.documentElement;
+                    if (ele.requestFullscreen) {
+                        ele.requestFullscreen();
+                    } else if (ele.mozRequestFullScreen) {
+                        ele.mozRequestFullScreen();
+                    } else if (ele.webkitRequestFullScreen) {
+                        ele.webkitRequestFullScreen();
+                    }
+                },
+                exitFullscreen() {
+                    var de = document;
+                    if (de.exitFullscreen) {
+                        de.exitFullscreen();
+                    } else if (de.mozCancelFullScreen) {
+                        de.mozCancelFullScreen();
+                    } else if (de.webkitCancelFullScreen) {
+                        de.webkitCancelFullScreen();
+                    }
+                },
                 play(){
                     this.$refs.videoId.play()
+                    this.fullScreen()
                 },
                 upLoad(){
                     // var params = new FormData()
