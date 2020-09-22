@@ -1,0 +1,204 @@
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=0">
+    <script src="js/vue.min.js"></script>
+    <script src="js/axios.min.js"></script>
+    <script src="js/cube.min.js"></script>
+    <script src="js/qs.js"></script>
+    <script src="./js/jweixin-1.4.0.js"></script>
+    <link rel="stylesheet" href="js/cube.min.css">
+    <script src="./js/vconsole.min.js"></script>
+    <script src="./js/js.cookie.min.js"></script>
+    <script src="./js/fly.min.js"></script>
+    <script src="./js/gif.js"></script>
+    <script crossorigin="anonymous" integrity="sha384-45XT1VzQggQADTAenPH2Ecf0gLIwfiZ1J+nlE27AA9qXjtUXaplXshIamSqaco/e" src="https://lib.baomitu.com/spark-md5/3.0.0/spark-md5.js"></script>
+
+    <style>
+        .cube-btn {
+            margin: 10px 0;
+        }
+        .demo{
+            display: inline-block;
+            width: 600px;
+            height: 338px;
+            text-align: center;
+            line-height: 100px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            overflow: hidden;
+            background: #fff;
+            position: relative;
+            box-shadow: 0 1px 1px rgba(0, 0, 0, .2);
+            margin-right: 4px;
+        }
+        
+        .demo:hover{
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <cube-button @click='getTokens'>getTokens</cube-button>
+        <cube-button @click='getFollowers'>getFollowers</cube-button>
+        <cube-button @click='auth'>微信登录</cube-button>
+        <cube-button @click='getUser'>获取用户信息</cube-button>
+        <cube-button @click='getJSConfig'>获取JSSKConfig</cube-button>
+        <cube-button @click='checkJSapi'>获取JSSK api</cube-button>
+        <cube-button @click='status'>Cookie session状态保持</cube-button>
+        <cube-button @click='getPhoto'>调用摄像头上传照片</cube-button>
+        <cube-button @click='getVideo'>调用摄像头上传视频</cube-button>
+       
+    </div>
+    <script>
+
+        var app = new Vue({
+            el: '#app',
+            data: {
+                value: 'input',
+              
+                isAndroid:false,
+               
+                
+            },
+            computed: {
+                player() {
+                    return this.$refs.videoPlayer.player
+                }
+            },
+            created() {
+                var u = navigator.userAgent;
+                var isAndroid = u.indexOf("Android") > -1 || u.indexOf("Adr") > -1; //android终端
+                var isiOS = !!u.match(/\(i[^;]+;( U;)? CPU.+Mac OS X/); //ios终端
+                if (isAndroid) {
+                    this.isAndroid = true;
+                } else if (isiOS) {
+                    this.isAndroid = false;
+                }
+                
+
+            },  
+            methods: {
+                async getTokens() {
+                    const res = await axios.get('/wechat/getTokens')
+                    console.log('res:', res)
+                },
+                async getFollowers() {
+                    const res = await axios.get('/wechat/getFollowers')
+                    console.log('res', res)
+                },
+                async auth() {
+                    window.location.href = '/wechat/wxAuthorize'
+
+                },
+                async getUser() {
+                    const qs = Qs.parse(window.location.search.substr(1))
+                    Cookies.set('openid', qs.openid);
+                    const res = await axios.get('/wechat/getUser', {
+                        params: {
+                            openid: qs.openid
+                        }
+                    })
+                    console.log('User', res.data)
+                },
+                async getJSConfig() {
+                    console.log('wx', wx)
+                    const res = await axios.get('/wechat/getJSConfig', {
+                        params: {
+                            url: window.location.href
+                        }
+                    })
+                    console.log('res....', res.data)
+                    res.data.jsApiList = ['onMenuShareTimeline', 'onMenuShareAppMessage','chooseVideo','chooseImage']
+                    wx.config(res.data);
+                    wx.ready(function () {
+                        console.log('wx.ready......')
+                    })
+                    wx.getNetworkType({
+                        success: function (res) {
+                            // 返回网络类型2g，3g，4g，wifi
+                            var networkType = res.networkType;
+                            console.log('getNetworkType...', networkType)
+                        }
+                    })
+                },
+                showToastTxtOnly(value) {
+                    this.toast = this.$createToast({
+                        txt: value,
+                        type: 'txt'
+                    })
+                    this.toast.show()
+                },
+                status(){
+                    Cookies.remove('openid');
+                },
+                checkJSapi(){
+                    wx.checkJsApi({
+                        jsApiList: ['chooseVideo'], // 需要检测的JS接口列表，所有JS接口列表见附录2,
+                        success: function(res) {
+                        // 以键值对的形式返回，可用的api值true，不可用为false
+                        // 如：{"checkResult":{"chooseImage":true},"errMsg":"checkJsApi:ok"}
+                            alert(JSON.stringify(res))
+                        },
+                        complete:function(){
+                            alert('complete')
+                        }
+                    });
+                },
+                getVideo(){
+                    // console.log(wx)
+                    // wx.chooseVideo({
+                    //     compressed: true, // 默认9
+                    //     maxDuration:60,
+                    //     camera:'back',
+                    //     sourceType: ['album', 'camera'], // 可以指定来源是相册还是相机，默认二者都有
+                    //     success: function (res) {
+                    //         // var localIds = res.localIds; // 返回选定照片的本地ID列表，localId可以作为img标签的src属性显示图片
+
+                    //     }
+                    // });
+                   
+                    WeixinJSBridge.invoke('chooseVideo', {
+                        sourceType : ['album', 'camera'],
+                        maxDuration : '8',//限制录制时间
+                        camera : 'back',
+                        isShowProgressTips : 0
+                    }, function(res) {
+                        alert(JSON.stringify(res));
+                        if (res.err_msg === "chooseVideo:ok") {
+                            window.localId = res.localId;
+                            callback();
+                        }
+                    });
+                },
+                getPhoto(){
+                    wx.chooseImage({
+                        count: 1, // 默认9
+                        sizeType: ['original', 'compressed'], // 可以指定是原图还是压缩图，默认二者都有
+                        sourceType: ['album', 'camera'], // 可以指定来源是相册还是相机，默认二者都有
+                        success: function (res) {
+                            var localIds = res.localIds; // 返回选定照片的本地ID列表，localId可以作为img标签的src属性显示图片
+
+                        }
+                    });
+                },
+
+             
+             
+            
+            
+            },
+            mounted: function () {
+                if(Cookies.get('openid')){
+                    this.showToastTxtOnly(Cookies.get('openid'))
+                }
+                new VConsole()
+            },
+        });
+    </script>
+</body>
+
+</html>

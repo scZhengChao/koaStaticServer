@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>EventSource</h1>
+</body>
+<script>
+    var source = new EventSource('/EventSource-test')
+source.onopen = function (event) { // 与服务器连接成功回调
+  console.log('成功与服务器连接')
+}
+// 监听从服务器发送来的所有没有指定事件类型的消息(没有event字段的消息)
+source.onmessage = function (event) { // 监听未命名事件
+  console.log('未命名事件', event.data)
+}
+source.onerror = function (error) { // 监听错误
+  console.log('错误',error)
+}
+// 监听指定类型的事件（可以监听多个）
+source.addEventListener("test", function (event) {
+  console.log("test", event.data)
+})
+</script>
+</html>

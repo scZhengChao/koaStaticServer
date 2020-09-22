@@ -19,9 +19,9 @@ onerror(app)
 app.use(static(__dirname+'/public'))  
 
 // 解析 Post 类 HTTP 动词的 body 内容，加上 bodyparser 后就可以处理所有请求了
-app.use(bodyparser({
-  enableTypes:['json', 'form', 'text']
-}))
+// app.use(bodyparser({
+//   enableTypes:['json', 'form', 'text']
+// }))
 // 更好的支持 JSON
 app.use(json())
 // 开发阶段的日志
@@ -46,11 +46,11 @@ app.use(async (ctx, next) => {
 
 
 // routes
-router.use('/users',require('./routes/users'))
+router.use('/users',require('./routes/users')) 
 router.use('/home',require('./routes/home'))
-router.use('/wechat',require('./routes/wechat'))
-router.use('/api',require('./routes/apiMethod'))
-
+router.use('/wechat',require('./routes/wechat')) // 微信公众号相关
+router.use('/api',require('./routes/apiMethod'))   // 视频上传合并 断点续传 worker线程
+router.use('/EventSource-test',require('./routes/eventSource'))  //eventSource  轻量有自动重连机制的 服务端到客户端通讯 单项通讯
 /**
  * 启动路由
 */

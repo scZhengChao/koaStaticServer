@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="./js/vue.min.js"></script>
+    <script src="./js/axios.min.js"></script>
+    <script src="./js/vconsole.min.js"></script>
+    <script src="./js/vant.min.js"></script>
+    <script src="./js/spark-md5.js"></script>
+    <link rel="stylesheet" href="./stylesheets/vant.css">
+    <style>
+        .myvideo1{
+            width: 300px;
+            height: 200px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div id='app'>
+        <input  
+            name="videofile" 
+            type="file" 
+            capture="camera" 
+            id="file"  
+            accept="video/*" 
+            multiple="" 
+            value="打开摄像头" 
+            @change='chooseVideo' 
+            style="display: none;" 
+            ref="inputFile"
+        />
+        <label for="file">
+            点击上传
+        </label>
+     
+        <video
+              :class="myvideo1"
+              :src="videoSrc1"
+              ref="videoId"
+              controls
+              muted 
+              autoplay="autoplay"
+            >  暂不支持video播放  </video>
+        <input type="button" value="播放" @click='play' ref="play">
+        <input type="button" value="上传" @click='handleUpload'>
+        <input type="button" value="尝试断点续传">
+    </div>
+</body>
+<script>
+   
+    var app = new Vue({
+        el: '#app',
+        data:{
+            myvideo1:{
+                myvideo1:true,
+                full:false
+            },
+            videoSrc1:null,
+            file:null,
+            filesAry:[],
+            data:null,
+            SIZE:1024*1024*2,
+            targetRequest:null,
+            fileName:null,
+            nameHash:null,
+            hashPercentage:null,
+            worker:null,
+            source:null
+        },
+        methods:{
+            // 利用worker 开始计算大文件的hash 值
+            calculateHash(fileChunkList) {
+                return new Promise(resolve => {
+                // 添加 worker 属性
+                    this.worker = new Worker("./util/hash.js");
+                    this.worker.postMessage({ fileChunkList });
+                    this.worker.onmessage = e => {
+                    const { percentage, hash , index } = e.data;
+                        console.log('createHash进度',percentage)
+                        this.hashPercentage = percentage;
+                        if (hash) {
+                            resolve({hash,index});
+                        }
+                    };
+                });
+            },
+            // 生成md5 值 hash 签名值
+            createMd5(fileChunkList=[]){
+                let currentChunk=0,md5;
+                let reader=new FileReader();
+                let spark = new SparkMD5.ArrayBuffer(); 
+                function readFile(){
+                    if(fileChunkList[currentChunk].file){
+                        reader.readAsArrayBuffer(fileChunkList[currentChunk].file)
+                    }
+                }
+                readFile();
+                return new Promise(resolve=>{
+                    reader.onload=e=>{
+                        currentChunk++;
+                        spark.append(e.target.result);
+                        if(currentChunk<fileChunkList.length){
+                            readFile();
+                        }else{
+                            md5=spark.end();
+                            resolve(md5);
+                        }
+                    };
+                })
+            },
+            //将多个大文件数组转换为对象
+            createChunk(files=[]){
+                console.log('将多个大文件重新组合')
+                let filesObj=files.reduce((pre,cur,index,ary)=>{
+                    pre[`${cur.name}_${index}`]=this.handleChunk(cur);
+                    return pre;
+                },{});
+                console.log('所有大文件处理完毕')
+                return filesObj;
+            },
+            //将单个大文件切割slice 分片
+            handleChunk(file){
+                console.log('开始切割单个大文件')
+                let current=0;
+                let fileList=[];
+                while(current<=file.size){
+                    fileList.push({
+                        file:file.slice(current,this.SIZE+current)
+                    });
+                    current+=this.SIZE;
+                }
+                return fileList;
+               
+            },
+            // 上传文件起点
+            chooseVideo(e){
+                var file = e.target.files[0];
+
+                this.filesAry=Array.from(e.target.files);
+
+                this.data=this.createChunk(this.filesAry);
+
+                this.file = file
+                console.log('file大小',file.size/1024/1024,'M')
+                console.log('file类型',file.type)
+                var url = null;
+                
+                //file映射本地地址
+                if (window.createObjectURL != undefined) {
+                    // basic
+                    url = window.createObjectURL(file);
+                } else if (window.URL != undefined) {
+                    // mozilla(firefox)
+                    url = window.URL.createObjectURL(file);
+                } else if (window.webkitURL != undefined) {
+                    // webkit or chrome
+                    url = window.webkitURL.createObjectURL(file);
+                }
+                this.videoSrc1 = url;
+                
+            }, 
+            play(){
+                this.$refs.videoId.play()
+                video.addEventListener('loadedmetadata', (e)=> {
+                    console.log(video.duration,'视频时长')
+                })
+                // this.fullScreen()
+            },
+            fullScreen() {
+                this.myvideo1.full = true
+                var ele = document.documentElement;
+                if (ele.requestFullscreen) {
+                    ele.requestFullscreen();
+                } else if (ele.mozRequestFullScreen) {
+                    ele.mozRequestFullScreen();
+                } else if (ele.webkitRequestFullScreen) {
+                    ele.webkitRequestFullScreen();
+                }
+            },
+            exitFullscreen() {
+                var de = document;
+                if (de.exitFullscreen) {
+                    de.exitFullscreen();
+                } else if (de.mozCancelFullScreen) {
+                    de.mozCancelFullScreen();
+                } else if (de.webkitCancelFullScreen) {
+                    de.webkitCancelFullScreen();
+                }
+            },
+            async handleUpload(e){
+                    
+                // 解析出文件名
+                function splitFilename(str){
+                    var reg = /_/g
+                    var res = reg.exec(str)
+                    while(reg.lastIndex !== 0){
+                        var nextres = reg.exec(str)
+                        if(nextres){
+                            res = nextres
+                        }
+                    }
+                    return str.slice(0,res.index)
+                }
+                // 解析出索引
+                function splitIndex(str){
+                    var reg = /_/g
+                    var res = reg.exec(str)
+                    while(reg.lastIndex !== 0){
+                        var nextres = reg.exec(str)
+                        if(nextres){
+                            res = nextres
+                        }
+                    }
+                    return str.slice(res.index+1)
+                }
+                // 解析出hash
+                function splitFileHash(key){
+                    var reg = /_/g
+                    var res = reg.exec(key)
+                    while(reg.lastIndex !== 0){
+                        var nextres = reg.exec(key)
+                        if(nextres){
+                            res = nextres
+                        }
+                    }
+                    var obj = {}
+                    obj.fileName = key.slice(0,res.index)
+                    obj.nameHash = key.slice(res.index+1)
+                    return obj
+                
+                }
+
+                this.targetRequest={};
+                // 这里的this.data 是一个对象 props 为file.name + index  值为 数组； 数组里的value 为分片后的 文件二进制bolb
+                for(let prop in this.data){
+                    if(this.data.hasOwnProperty(prop)){
+                        
+                        var fileName = splitFilename(prop)
+                        
+                        // var nameHash = await this.createMd5(this.data[prop]); //在 master 线程计算hash 值
+                        var {hash:nameHash,index} = await this.calculateHash(this.data[prop]); //在 worker 线程 计算
+                        console.log('计算出每个单个大文件的hash值',nameHash,index,this.data[prop])
+                        //开始上传了 先校验后端是否存在文件
+                        const shouldUpdate = await this.verifyUpload(nameHash,index)
+                        console.log('服务端校验结果',shouldUpdate,index)
+                        if(!shouldUpdate.shouldUpload){
+                            if(shouldUpdate.uploadedList.length ===  index){
+                                vant.Toast('文件秒传');
+                            }else{
+                               
+                                let list  = shouldUpdate.uploadedList.map(str=>splitIndex(str))
+                                console.log(list)
+                                vant.Toast('断点续传'+list.length)
+                                this.targetRequest[`${fileName}_${nameHash}`]=this.createFormDataRequest(this.data[prop],prop,nameHash,fileName,list);
+                            }
+                        }else{
+                            this.targetRequest[`${fileName}_${nameHash}`]=this.createFormDataRequest(this.data[prop],prop,nameHash,fileName);
+                        }
+                    }
+                }
+                
+                //发送请求，并且请求完成之后合并
+                Object.keys(this.targetRequest).forEach( key=>{
+            
+                    var {fileName,nameHash } =  splitFileHash(key);
+                    Promise.all(this.targetRequest[key]).then(res=>{
+                        console.log("开始分片上传成功，开始合并")
+                        let params = new FormData()
+                        params.append('filename',fileName)
+                        params.append('nameHash',nameHash)
+                        params.append('SIZE',this.SIZE)
+                        this.createRequest({
+                            method:'post',
+                            url:'/api/handleMerge',
+                            data:params
+                        }).then(res=>{
+                            console.log("合并成功")
+                        })
+                    }).catch(err=>{
+                        console.log('分片发送失败',err.message)
+                      
+                    })
+                })
+            },
+            //校验后端 是否已经有该文件
+            verifyUpload(hash){
+                return axios({
+                    method:'post',
+                    url:'/api/verifyUpload',
+                    data:{
+                        hash
+                    }
+                }).then(res=>{
+                    console.log('是否上传过该文件',res.data.data)
+                    return res.data.data
+                }).catch(err=>{
+                    console.log('校验是否上传过该文件失败',err.message)
+                })
+            },
+            //将每个切片组装成formdata对象
+            createFormDataRequest(files=[],prop='',nameHash='',fileName='',fileChunk=[]){
+                console.log('上传过的索引',fileChunk)
+                // 还有这种 写法； 返回一个axios 的promise
+                let target=files.map((file,index)=>{
+                    let formdata= new FormData();
+                    formdata.append('file',file.file);
+                    formdata.append('index',index);
+                    formdata.append('hash',prop);
+                    formdata.append('nameHash',nameHash);
+                    formdata.append('filename',fileName);
+                    return {formdata,index};
+                }).map(({formdata,index})=>{
+                    if(fileChunk.includes(index.toString())) return Promise.resolve()
+                    return this.createRequest({
+                        method:'post',
+                        url:'/api/handleUpload',
+                        data:formdata,
+                    })
+                })
+                // 模拟暂停上传的按钮点击
+                // setTimeout(()=>{
+                //     // 取消请求（message 参数是可选的）
+                //     this.source.cancel('暂停上传');
+                // },80)
+                return target;
+            },
+            // axios 请求
+            createRequest({method='post',url='',data={}}){
+                var xhr = axios({
+                        method:method,
+                        url:url,
+                        data:data,
+                        cancelToken:this.source.token
+                    }).then(res=>{
+                        return res
+                    }).catch(thrown=>{
+                        if (axios.isCancel(thrown)) {
+                            console.log('这是我自动取消的', thrown.message);
+                            // 这里抛错误出去 让它进入下一个catch
+                            throw new Error(thrown.message)
+                        } else {
+                            // 处理错误
+                            console.log('这才是真正错误导致的',thrown)
+                        }
+                    })
+                return xhr
+            }
+
+
+
+
+        },
+        mounted() {
+            var CancelToken = axios.CancelToken;
+            this.source = CancelToken.source();
+            new VConsole()
+        },
+            
+    })
+
+    Vue.use(vant.Button);
+    Vue.use(Vant.Toast);
+</script>
+</html>

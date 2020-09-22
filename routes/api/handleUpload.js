@@ -27,7 +27,7 @@ router.all('/',async ctx=>{
     var writeStream=fs.createWriteStream(`${chunkPath}/${filename}_${index}`);
     readStream.pipe(writeStream);
     readStream.on('end',function(){
-     fs.unlinkSync(file.path); // 同步的删除的文件
+      fs.unlinkSync(file.path); // 同步的删除的文件
     });
     
     return ctx.body={
